@@ -1,0 +1,4 @@
+(executable
+ (public_name PL_play)
+ (name main)
+ (libraries interpreter))

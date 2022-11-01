@@ -1,0 +1,8 @@
+lib: [
+  "_build/install/default/lib/PL_play/META"
+  "_build/install/default/lib/PL_play/dune-package"
+  "_build/install/default/lib/PL_play/opam"
+]
+bin: [
+  "_build/install/default/bin/PL_play"
+]
