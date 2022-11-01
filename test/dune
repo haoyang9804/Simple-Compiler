@@ -1,2 +1,3 @@
 (test
- (name PL_play))
+ (name testInstruction)
+ (libraries interpreter core base))
