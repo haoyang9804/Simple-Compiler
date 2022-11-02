@@ -4,5 +4,5 @@ let instrs : instrs = [Cst 1; Cst 2; Add]
 let stack : stack = []
 
 let () = 
-  let stk = eval instrs stack in
-  print_stack stk
+  let v = eval instrs stack in
+  print_operand v
