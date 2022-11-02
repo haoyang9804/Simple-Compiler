@@ -1,5 +1,5 @@
-(test
- (name
-  ; testInstruction
+(tests
+ (names
+  testInstruction
   testCompile)
  (libraries interpreter core base))
