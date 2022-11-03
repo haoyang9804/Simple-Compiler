@@ -81,3 +81,39 @@ let rec lower (expr : Expr.expr) (cenv : cenv) : Nameless.expr =
   | Mul (e1, e2) -> Mul ((lower e1 cenv), (lower e2 cenv))
   | Var x -> Var (index cenv x)
   | Let (x, e1, e2) -> Let (lower e1 cenv, lower e2 (x :: cenv))
+
+module Instruction = struct
+  type instr = Cst of int | Add | Mul | Var of int | Pop | Swap
+  
+  let rec eval (instrs : instr list) (stack : int list) =
+    match instrs with
+    | [] -> (match stack with
+            | [x] -> x
+            | [] -> failwith "stack is empty"
+            | _ -> failwith "stack contains more than 1 element"
+            )
+    | head :: tail ->
+      (match head with
+      | Cst i -> eval tail (i :: stack)
+      | Add -> (match stack with
+               | v1 :: v2 :: tail_ -> eval tail ((v1 + v2) :: tail_)
+               | [_] | [] -> failwith "Add: Inadequate candidates for Add")
+      | Mul -> (match stack with
+                | v1 :: v2 :: tail_ -> eval tail ((v1 * v2) :: tail_)
+                | [_] | [] -> failwith "Mul: Inadequate candidates for Mul")
+      | Var i -> 
+        let rec index stk n =
+          (match stk with
+          | [] -> failwith "stk is empty"
+          | head_ :: tail_ -> if n = 0 then head_ else index tail_(n-1))
+        in eval tail ((index stack i) :: stack)
+      | Pop ->
+        (match stack with
+        | [] -> failwith "Pop: empty stack"
+        | _ :: tail_ -> eval tail tail_)
+      | Swap ->
+        (match stack with
+         | [] | [_] -> failwith "Swap: Inadequate candidates for Swap"
+         | e1 :: e2 :: tail_ -> eval tail (e2 :: e1 :: tail_))
+      )
+end
