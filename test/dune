@@ -1,3 +1,8 @@
 (tests
- (names testInstruction0 testCompile0 testExpr1 testlower)
+ (names
+  testInstruction0
+  testCompile0
+  testExpr1
+  testlower
+  testInstructionCompile)
  (libraries interpreter core base))
