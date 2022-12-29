@@ -1,7 +1,7 @@
 #include <iostream>
+#include <list>
 #include <unordered_map>
 #include <vector>
-#include <list>
 
 template <typename Base, typename T> bool isinstanceof(const T *t) {
   return dynamic_cast<const Base *>(t) != nullptr;
@@ -231,7 +231,7 @@ class Cst : public Instr {
 public:
   int val;
   Cst() {}
-  Cst(int val): val(val) {}
+  Cst(int val) : val(val) {}
   std::string expr_name() { return "Cst"; }
 };
 
@@ -264,98 +264,92 @@ public:
 };
 
 typedef std::list<int> Stack;
-typedef std::list<Instr*> InstrPtrs;
+typedef std::list<Instr *> InstrPtrs;
 
 int eval(InstrPtrs instrs, Stack stack) {
-  for (Instr* instrPtr : instrs) {
+  for (Instr *instrPtr : instrs) {
     if (isinstanceof<Cst>(instrPtr)) {
-      Instruction::Cst* cst = static_cast<Instruction::Cst*>(instrPtr);
+      Instruction::Cst *cst = static_cast<Instruction::Cst *>(instrPtr);
       stack.insert(stack.begin(), cst->val);
-    }
-    else if(isinstanceof<Add>(instrPtr)) {
-      if(stack.size() < 2) {
-        throw std::logic_error("Inadequate values in stack for Add instruction");
+    } else if (isinstanceof<Add>(instrPtr)) {
+      if (stack.size() < 2) {
+        throw std::logic_error(
+            "Inadequate values in stack for Add instruction");
       }
       int val1 = stack.front();
       stack.pop_front();
       int val2 = stack.front();
       stack.pop_front();
       stack.insert(stack.begin(), val1 + val2);
-    }
-    else if (isinstanceof<Mul>(instrPtr)) {
-      if(stack.size() < 2) {
-        throw std::logic_error("Inadequate values in stack for Mul instruction");
+    } else if (isinstanceof<Mul>(instrPtr)) {
+      if (stack.size() < 2) {
+        throw std::logic_error(
+            "Inadequate values in stack for Mul instruction");
       }
       int val1 = stack.front();
       stack.pop_front();
       int val2 = stack.front();
       stack.pop_front();
       stack.insert(stack.begin(), val1 * val2);
-    }
-    else if (isinstanceof<Var>(instrPtr)) {
-      Var* varptr = static_cast<Var*> (instrPtr);
+    } else if (isinstanceof<Var>(instrPtr)) {
+      Var *varptr = static_cast<Var *>(instrPtr);
       std::list<int>::iterator listi;
       int count = 0;
-      for(listi = stack.begin(), count = 0; listi != stack.end(); ++listi, ++count) {
-        if (count == varptr -> index) {
+      for (listi = stack.begin(), count = 0; listi != stack.end();
+           ++listi, ++count) {
+        if (count == varptr->index) {
           stack.insert(stack.begin(), (*listi));
           break;
         }
       }
-    }
-    else if (isinstanceof<Pop>(instrPtr)) {
+    } else if (isinstanceof<Pop>(instrPtr)) {
       stack.pop_front();
-    }
-    else if (isinstanceof<Swap>(instrPtr)) {
+    } else if (isinstanceof<Swap>(instrPtr)) {
       int val1 = stack.front();
       stack.pop_front();
       int val2 = stack.front();
       stack.pop_front();
       stack.insert(stack.begin(), val1);
       stack.insert(stack.begin(), val2);
-    }
-    else {
+    } else {
       throw std::logic_error("Unsupported expr in Instr::to_str: " +
-                           instrPtr->expr_name());
+                             instrPtr->expr_name());
     }
   }
   if (stack.size() != 1) {
-    throw std::logic_error("Incorrect number of elements in stack, and size equals " + std::to_string(stack.size()));
+    throw std::logic_error(
+        "Incorrect number of elements in stack, and size equals " +
+        std::to_string(stack.size()));
   }
   return *(stack.begin());
 }
 
 std::string to_str(InstrPtrs instrs) {
   std::string str = "";
-  for (Instr* instr : instrs) {
+  for (Instr *instr : instrs) {
     if (isinstanceof<Cst>(instr)) {
-      Cst* cstptr = static_cast<Cst*>(instr);
+      Cst *cstptr = static_cast<Cst *>(instr);
       str += ">| Cst " + std::to_string(cstptr->val) + "\n";
-    }
-    else if (isinstanceof<Add>(instr)) {
+    } else if (isinstanceof<Add>(instr)) {
       str += ">| Add\n";
-    }
-    else if (isinstanceof<Mul>(instr)) {
+    } else if (isinstanceof<Mul>(instr)) {
       str += ">| Mul\n";
-    }
-    else if (isinstanceof<Var>(instr)) {
-      Var* varptr = static_cast<Var*> (instr);
+    } else if (isinstanceof<Var>(instr)) {
+      Var *varptr = static_cast<Var *>(instr);
       str += ">| Var" + std::to_string(varptr->index) + "\n";
-    }
-    else if (isinstanceof<Pop>(instr)) {
+    } else if (isinstanceof<Pop>(instr)) {
       str += ">| Pop\n";
-    }
-    else if (isinstanceof<Swap>(instr)) {
+    } else if (isinstanceof<Swap>(instr)) {
       str += ">| Swap\n";
-    }
-    else {
-      throw std::logic_error("Unsupported instr in Instr::to_str: " + instr->expr_name());
+    } else {
+      throw std::logic_error("Unsupported instr in Instr::to_str: " +
+                             instr->expr_name());
     }
   }
   return str;
 }
 
-}
+} // namespace Instruction
 
 namespace Compiler {
 
@@ -403,15 +397,11 @@ public:
   virtual ~AbstractVal() {}
 };
 
-class Slocal : public AbstractVal {
+class Slocal : public AbstractVal {};
 
-};
+class Stmp : public AbstractVal {};
 
-class Stmp : public AbstractVal {
-
-};
-
-typedef std::list<AbstractVal*> AEnv;
+typedef std::list<AbstractVal *> AEnv;
 
 int findIndexofInstructionVar(int NamelessVarIndex, AEnv aenv) {
   int index = -1;
@@ -420,28 +410,28 @@ int findIndexofInstructionVar(int NamelessVarIndex, AEnv aenv) {
   auto li = aenv.rbegin();
   for (count = 0; li != aenv.rend(); ++li, ++count) {
     if (isinstanceof<Slocal>(*(li))) {
-      index ++;
-    }
-    else if (isinstanceof<Stmp>(*(li))) {
+      index++;
+    } else if (isinstanceof<Stmp>(*(li))) {
       continue;
-    }
-    else {
-      throw std::logic_error("Unsupported AbstractVar in findIndexofInstructionVar");
+    } else {
+      throw std::logic_error(
+          "Unsupported AbstractVar in findIndexofInstructionVar");
     }
     if (index == NamelessVarIndex) {
       return aenv_siz - 1 - count;
     }
   }
-  throw std::logic_error("Cannot find NamelessVarIndex " + std::to_string(NamelessVarIndex) + " in aenv");
+  throw std::logic_error("Cannot find NamelessVarIndex " +
+                         std::to_string(NamelessVarIndex) + " in aenv");
 }
 
-Instruction::InstrPtrs lowerFromNamelessToInstruction(Nameless::Expr* eptr, AEnv aenv) {
+Instruction::InstrPtrs lowerFromNamelessToInstruction(Nameless::Expr *eptr,
+                                                      AEnv aenv) {
   if (isinstanceof<Nameless::Cst>(eptr)) {
-    Nameless::Cst* cst = static_cast<Nameless::Cst*>(eptr);
+    Nameless::Cst *cst = static_cast<Nameless::Cst *>(eptr);
     return {new Instruction::Cst(cst->val)};
-  }
-  else if (isinstanceof<Nameless::Add>(eptr)) {
-    Nameless::Add* add = static_cast<Nameless::Add*> (eptr);
+  } else if (isinstanceof<Nameless::Add>(eptr)) {
+    Nameless::Add *add = static_cast<Nameless::Add *>(eptr);
     auto e1 = add->e1;
     auto e2 = add->e2;
     Instruction::InstrPtrs instrPtrs = lowerFromNamelessToInstruction(e1, aenv);
@@ -449,9 +439,8 @@ Instruction::InstrPtrs lowerFromNamelessToInstruction(Nameless::Expr* eptr, AEnv
     instrPtrs.splice(instrPtrs.end(), lowerFromNamelessToInstruction(e2, aenv));
     instrPtrs.push_back(new Instruction::Add());
     return instrPtrs;
-  }
-  else if (isinstanceof<Nameless::Mul>(eptr)) {
-    Nameless::Mul* mul = static_cast<Nameless::Mul*> (eptr);
+  } else if (isinstanceof<Nameless::Mul>(eptr)) {
+    Nameless::Mul *mul = static_cast<Nameless::Mul *>(eptr);
     auto e1 = mul->e1;
     auto e2 = mul->e2;
     Instruction::InstrPtrs instrPtrs = lowerFromNamelessToInstruction(e1, aenv);
@@ -460,25 +449,26 @@ Instruction::InstrPtrs lowerFromNamelessToInstruction(Nameless::Expr* eptr, AEnv
     instrPtrs.splice(it, lowerFromNamelessToInstruction(e2, aenv));
     instrPtrs.push_back(new Instruction::Mul());
     return instrPtrs;
-  }
-  else if(isinstanceof<Nameless::Var>(eptr)) {
-    Nameless::Var* var = static_cast<Nameless::Var*>(eptr);
+  } else if (isinstanceof<Nameless::Var>(eptr)) {
+    Nameless::Var *var = static_cast<Nameless::Var *>(eptr);
     int index = findIndexofInstructionVar(var->index, aenv);
     return {new Instruction::Var(index)};
-  }
-  else if (isinstanceof<Nameless::Let>(eptr)) {
-    Nameless::Let* let = static_cast<Nameless::Let*>(eptr);
-    auto e1 = let -> e1;
-    auto e2 = let -> e2;
+  } else if (isinstanceof<Nameless::Let>(eptr)) {
+    Nameless::Let *let = static_cast<Nameless::Let *>(eptr);
+    auto e1 = let->e1;
+    auto e2 = let->e2;
     Instruction::InstrPtrs instrPtrs = lowerFromNamelessToInstruction(e1, aenv);
     aenv.push_front(new Slocal());
-    Instruction::InstrPtrs instrPtrs2 = lowerFromNamelessToInstruction(e2, aenv);
+    Instruction::InstrPtrs instrPtrs2 =
+        lowerFromNamelessToInstruction(e2, aenv);
     instrPtrs.splice(instrPtrs.end(), instrPtrs2);
     instrPtrs.push_back(new Instruction::Swap());
     instrPtrs.push_back(new Instruction::Pop());
     return instrPtrs;
   }
-  throw std::logic_error("Unsupported Nameless::Expr in lowerFromNamelessToInstruction: " + eptr->expr_name());
+  throw std::logic_error(
+      "Unsupported Nameless::Expr in lowerFromNamelessToInstruction: " +
+      eptr->expr_name());
 }
 
 } // namespace Compiler
