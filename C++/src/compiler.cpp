@@ -3,6 +3,11 @@
 #include <unordered_map>
 #include <vector>
 
+#define ASSERT(STATEMENT, STR) \
+  if (!(STATEMENT)) throw std::logic_error(STR)
+
+#define ALARM(STR) throw std::logic_error(STR)
+
 template <typename Base, typename T> bool isinstanceof(const T *t) {
   return dynamic_cast<const Base *>(t) != nullptr;
 }
@@ -55,7 +60,7 @@ public:
 
 class Fn : public Expr {
 public:
-  Fn(std::vector<std::string> params, Expr* expr) : params(params), expr(expr) {}
+  Fn(const std::vector<std::string>& params, Expr* expr) : params(params), expr(expr) {}
   Fn(std::vector<std::string>&& params, Expr* expr): params(std::move(params)), expr(expr) {}
   std::vector<std::string> params;
   Expr* expr;
@@ -63,13 +68,14 @@ public:
 
 class App : public Expr {
 public:
-  App(Fn* fn, std::vector<std::string> arguments): fn(fn), arguments(arguments) {}
+  App(Fn* fn, const std::vector<std::string>& arguments): fn(fn), arguments(arguments) {}
   App(Fn* fn, std::vector<std::string>&& arguments): fn(fn), arguments(std::move(arguments)) {}
-  Fn* fn;
+  Expr* fn;
   std::vector<std::string> arguments;
 };
 
-typedef std::unordered_map<std::string, int> Env;
+class Value;
+typedef std::unordered_map<std::string, Value*> Env;
 
 class Value {
 public:
@@ -84,7 +90,7 @@ public:
 
 class Vclosure : public Value {
 public:
-  Vclosure(Env env, std::vector<std::string> params, Expr* expr): env(env), params(params), expr(expr) {}
+  Vclosure(Env env, const std::vector<std::string>& params, Expr* expr): env(env), params(params), expr(expr) {}
   Vclosure(Env env, std::vector<std::string>&& params, Expr* expr): env(env), params(std::move(params)), expr(expr) {}
   Env env;
   std::vector<std::string> params;
@@ -97,7 +103,7 @@ Vint* vadd(Value* v1, Value* v2) {
     Vint* vint2 = static_cast<Vint*>(v2);
     return new Vint(vint1->val + vint2->val);
   }
-  throw std::logic_error("vadd type error");
+  ALARM("vadd type error");
 }
 
 Vint* vmul(Value* v1, Value* v2) {
@@ -106,7 +112,7 @@ Vint* vmul(Value* v1, Value* v2) {
     Vint* vint2 = static_cast<Vint*>(v2);
     return new Vint(vint1->val * vint2->val);
   }
-  throw std::logic_error("vmul type error");
+  ALARM("vmul type error");
 }
 
 
@@ -123,22 +129,35 @@ Value* eval(Expr *eptr, Env env) {
   } else if (isinstanceof<Var>(eptr)) {
     Var *var = static_cast<Var *>(eptr);
     auto pos = env.find(var->name);
-    if (pos == env.end()) {
-      throw std::logic_error("Cannot find key " + var->name);
-    }
+    ASSERT(pos != env.end(), "Cannot find key " + var->name);
     return pos->second;
   } else if (isinstanceof<Let>(eptr)) {
     Let *let = static_cast<Let *>(eptr);
-    int e1_val = eval(let->e1, env);
+    Value* e1_val = eval(let->e1, env);
     env.insert(std::make_pair(let->name, e1_val));
     return eval(let->e2, env);
   } else if (isinstanceof<Fn>(eptr)) {
     Fn *fn = static_cast<Fn *>(eptr);
-
-  } 
+    return new Vclosure(env, std::move(fn->params), fn->expr);
+  } else if (isinstanceof<App>(eptr)) {
+    App *app = static_cast<App *>(eptr);
+    Value* fn_val = eval(app->fn, env);
+    ASSERT(isinstanceof<Vclosure*>(fn_val), "The evaluation result of function is not closure.");
+    Vclosure* fn_val_closure = static_cast<Vclosure*>(fn_val);
+    // renew env by assigning parameters the values of arguments
+    ASSERT(app->arguments.size() == fn_val_closure->params.size(), "arguments' number does not equal to parameters' number");
+    size_t arg_size = app->arguments.size();
+    for (size_t i = 0; i < arg_size; i++) {
+      std::string argument = app->arguments[i];
+      Value* arg_val = env.find(argument)->second;
+      std::string parameter = fn_val_closure->params[i];
+      env.insert(std::make_pair(parameter, arg_val));
+    } 
+    return eval(fn_val_closure->expr, env);
+  }
   else {
-    throw std::logic_error("Unsupported expr in Expr::eval: " +
-                           eptr->expr_name());
+    ALARM("Unsupported expr in Expr::eval: " +
+                           eptr->expr_name()); 
   }
 }
 
@@ -160,8 +179,28 @@ std::string to_str(Expr *eptr) {
     Let *let = static_cast<Let *>(eptr);
     str +=
         "let " + let->name + " = " + to_str(let->e1) + " in " + to_str(let->e2);
-  } else {
-    throw std::logic_error("Unsupported expr in Expr::to_str: " +
+  } else if (isinstanceof<Fn>(eptr)) {
+    str += "Fn(";
+    Fn* fn = static_cast<Fn*>(eptr);
+    for (std::string& parameter : fn->params) {
+      str += parameter + ", ";
+    }
+    str = str.substr(0, str.size() - 2);
+    str += "{\n";
+    str += to_str(fn->expr);
+    str += "\n}";
+  } else if (isinstanceof<App>(eptr)) {
+    App* app = static_cast<App*>(eptr);
+    str += to_str(app->fn);
+    str += "(";
+    for (std::string& argument : app->arguments) {
+      str += argument + ", ";
+    }
+    str = str.substr(0, str.size() - 2);
+    str += ")";
+  }
+  else {
+    ALARM("Unsupported expr in Expr::to_str: " +
                            eptr->expr_name());
   }
   return str;
@@ -233,9 +272,7 @@ int eval(Expr *eptr, Env env) {
     return eval(mul->e1, env) * eval(mul->e2, env);
   } else if (isinstanceof<Var>(eptr)) {
     Var *var = static_cast<Var *>(eptr);
-    if (env.size() <= var->index) {
-      throw std::logic_error("var's index is out of env's scope");
-    }
+    ASSERT(env.size() > var->index, "var's index is out of env's scope");
     return env[var->index];
   } else if (isinstanceof<Let>(eptr)) {
     Let *let = static_cast<Let *>(eptr);
@@ -243,8 +280,7 @@ int eval(Expr *eptr, Env env) {
     env.push_back(e1_val);
     return eval(let->e2, env);
   } else {
-    throw std::logic_error("Unsupported expr in Nameless::eval: " +
-                           eptr->expr_name());
+    ALARM("Unsupported expr in Nameless::eval: " + eptr->expr_name());
   }
 }
 
@@ -266,7 +302,7 @@ std::string to_str(Expr *eptr) {
     Let *let = static_cast<Let *>(eptr);
     str += "let " + to_str(let->e1) + " in " + to_str(let->e2);
   } else {
-    throw std::logic_error("Unsupported expr in Nameless::to_str: " +
+    ALARM("Unsupported expr in Nameless::to_str: " +
                            eptr->expr_name());
   }
   return str;
@@ -326,20 +362,14 @@ int eval(InstrPtrs instrs, Stack stack) {
       Instruction::Cst *cst = static_cast<Instruction::Cst *>(instrPtr);
       stack.insert(stack.begin(), cst->val);
     } else if (isinstanceof<Add>(instrPtr)) {
-      if (stack.size() < 2) {
-        throw std::logic_error(
-            "Inadequate values in stack for Add instruction");
-      }
+      ASSERT(stack.size() >= 2, "Inadequate values in stack for Add instruction");
       int val1 = stack.front();
       stack.pop_front();
       int val2 = stack.front();
       stack.pop_front();
       stack.insert(stack.begin(), val1 + val2);
     } else if (isinstanceof<Mul>(instrPtr)) {
-      if (stack.size() < 2) {
-        throw std::logic_error(
-            "Inadequate values in stack for Mul instruction");
-      }
+      ASSERT(stack.size() >= 2, "Inadequate values in stack for Mul instruction");
       int val1 = stack.front();
       stack.pop_front();
       int val2 = stack.front();
@@ -366,15 +396,12 @@ int eval(InstrPtrs instrs, Stack stack) {
       stack.insert(stack.begin(), val1);
       stack.insert(stack.begin(), val2);
     } else {
-      throw std::logic_error("Unsupported expr in Instr::to_str: " +
+      ALARM("Unsupported expr in Instr::to_str: " +
                              instrPtr->expr_name());
     }
   }
-  if (stack.size() != 1) {
-    throw std::logic_error(
-        "Incorrect number of elements in stack, and size equals " +
+  ASSERT(stack.size() == 1, "Incorrect number of elements in stack, and size equals " +
         std::to_string(stack.size()));
-  }
   return *(stack.begin());
 }
 
@@ -396,7 +423,7 @@ std::string to_str(InstrPtrs instrs) {
     } else if (isinstanceof<Swap>(instr)) {
       str += ">| Swap\n";
     } else {
-      throw std::logic_error("Unsupported instr in Instr::to_str: " +
+      ALARM("Unsupported instr in Instr::to_str: " +
                              instr->expr_name());
     }
   }
@@ -417,7 +444,7 @@ int findIndex(CEnv cenv, std::string name) {
     }
     index++;
   }
-  throw std::logic_error("Cannot find name " + name + " in cenv");
+  ALARM("Cannot find name " + name + " in cenv");
 }
 
 Nameless::Expr *lowerFromExprToNameless(Expr::Expr *eptr, CEnv cenv) {
@@ -441,7 +468,7 @@ Nameless::Expr *lowerFromExprToNameless(Expr::Expr *eptr, CEnv cenv) {
     return new Nameless::Let(lowerFromExprToNameless(let->e1, cenv),
                              lowerFromExprToNameless(let->e2, cenv));
   } else {
-    throw std::logic_error("Unsupported expr in Nameless::eval: " +
+    ALARM("Unsupported expr in Nameless::eval: " +
                            eptr->expr_name());
   }
 }
@@ -468,14 +495,13 @@ int findIndexofInstructionVar(int NamelessVarIndex, AEnv aenv) {
     } else if (isinstanceof<Stmp>(*(li))) {
       continue;
     } else {
-      throw std::logic_error(
-          "Unsupported AbstractVar in findIndexofInstructionVar");
+      ALARM("Unsupported AbstractVar in findIndexofInstructionVar");
     }
     if (index == NamelessVarIndex) {
       return aenv_siz - 1 - count;
     }
   }
-  throw std::logic_error("Cannot find NamelessVarIndex " +
+  ALARM("Cannot find NamelessVarIndex " +
                          std::to_string(NamelessVarIndex) + " in aenv");
 }
 
@@ -520,8 +546,7 @@ Instruction::InstrPtrs lowerFromNamelessToInstruction(Nameless::Expr *eptr,
     instrPtrs.push_back(new Instruction::Pop());
     return instrPtrs;
   }
-  throw std::logic_error(
-      "Unsupported Nameless::Expr in lowerFromNamelessToInstruction: " +
+  ALARM("Unsupported Nameless::Expr in lowerFromNamelessToInstruction: " +
       eptr->expr_name());
 }
 
