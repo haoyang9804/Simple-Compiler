@@ -3,8 +3,9 @@
 #include <unordered_map>
 #include <vector>
 
-#define ASSERT(STATEMENT, STR) \
-  if (!(STATEMENT)) throw std::logic_error(STR)
+#define ASSERT(STATEMENT, STR)                                                 \
+  if (!(STATEMENT))                                                            \
+  throw std::logic_error(STR)
 
 #define ALARM(STR) throw std::logic_error(STR)
 
@@ -60,63 +61,68 @@ public:
 
 class Fn : public Expr {
 public:
-  Fn(const std::vector<std::string>& params, Expr* expr) : params(params), expr(expr) {}
-  Fn(std::vector<std::string>&& params, Expr* expr): params(std::move(params)), expr(expr) {}
+  Fn(const std::vector<std::string> &params, Expr *expr)
+      : params(params), expr(expr) {}
+  Fn(std::vector<std::string> &&params, Expr *expr)
+      : params(std::move(params)), expr(expr) {}
   std::vector<std::string> params;
-  Expr* expr;
+  Expr *expr;
 };
 
 class App : public Expr {
 public:
-  App(Expr* fn, const std::vector<std::string>& arguments): fn(fn), arguments(arguments) {}
-  App(Expr* fn, std::vector<std::string>&& arguments): fn(fn), arguments(std::move(arguments)) {}
-  Expr* fn;
+  App(Expr *fn, const std::vector<std::string> &arguments)
+      : fn(fn), arguments(arguments) {}
+  App(Expr *fn, std::vector<std::string> &&arguments)
+      : fn(fn), arguments(std::move(arguments)) {}
+  Expr *fn;
   std::vector<std::string> arguments;
 };
 
 class Value;
-typedef std::unordered_map<std::string, Value*> Env;
+typedef std::unordered_map<std::string, Value *> Env;
 
 class Value {
 public:
-  virtual ~Value () {}
+  virtual ~Value() {}
 };
 
 class Vint : public Value {
 public:
-  Vint(int val): val(val) {}
+  Vint(int val) : val(val) {}
   int val;
 };
 
 class Vclosure : public Value {
 public:
-  Vclosure(Env env, const std::vector<std::string>& params, Expr* expr): env(env), params(params), expr(expr) {}
-  Vclosure(Env env, std::vector<std::string>&& params, Expr* expr): env(env), params(std::move(params)), expr(expr) {}
+  Vclosure(Env env, const std::vector<std::string> &params, Expr *expr)
+      : env(env), params(params), expr(expr) {}
+  Vclosure(Env env, std::vector<std::string> &&params, Expr *expr)
+      : env(env), params(std::move(params)), expr(expr) {}
   Env env;
   std::vector<std::string> params;
-  Expr* expr;
+  Expr *expr;
 };
 
-Vint* vadd(Value* v1, Value* v2) {
-  if(isinstanceof<Vint>(v1) && isinstanceof<Vint>(v2)) {
-    Vint* vint1 = static_cast<Vint*>(v1);
-    Vint* vint2 = static_cast<Vint*>(v2);
+Vint *vadd(Value *v1, Value *v2) {
+  if (isinstanceof<Vint>(v1) && isinstanceof<Vint>(v2)) {
+    Vint *vint1 = static_cast<Vint *>(v1);
+    Vint *vint2 = static_cast<Vint *>(v2);
     return new Vint(vint1->val + vint2->val);
   }
   ALARM("vadd type error");
 }
 
-Vint* vmul(Value* v1, Value* v2) {
-  if(isinstanceof<Vint>(v1) && isinstanceof<Vint>(v2)) {
-    Vint* vint1 = static_cast<Vint*>(v1);
-    Vint* vint2 = static_cast<Vint*>(v2);
+Vint *vmul(Value *v1, Value *v2) {
+  if (isinstanceof<Vint>(v1) && isinstanceof<Vint>(v2)) {
+    Vint *vint1 = static_cast<Vint *>(v1);
+    Vint *vint2 = static_cast<Vint *>(v2);
     return new Vint(vint1->val * vint2->val);
   }
   ALARM("vmul type error");
 }
 
-
-Value* eval(Expr *eptr, Env env) {
+Value *eval(Expr *eptr, Env env) {
   if (isinstanceof<Cst>(eptr)) {
     Cst *cst = static_cast<Cst *>(eptr);
     return new Vint(cst->val);
@@ -133,7 +139,7 @@ Value* eval(Expr *eptr, Env env) {
     return pos->second;
   } else if (isinstanceof<Let>(eptr)) {
     Let *let = static_cast<Let *>(eptr);
-    Value* e1_val = eval(let->e1, env);
+    Value *e1_val = eval(let->e1, env);
     env.insert(std::make_pair(let->name, e1_val));
     return eval(let->e2, env);
   } else if (isinstanceof<Fn>(eptr)) {
@@ -141,31 +147,32 @@ Value* eval(Expr *eptr, Env env) {
     return new Vclosure(env, std::move(fn->params), fn->expr);
   } else if (isinstanceof<App>(eptr)) {
     App *app = static_cast<App *>(eptr);
-    Value* fn_val = eval(app->fn, env);
-    ASSERT(isinstanceof<Vclosure>(fn_val), "The evaluation result of function is not closure.");
-    Vclosure* fn_val_closure = static_cast<Vclosure*>(fn_val);
+    Value *fn_val = eval(app->fn, env);
+    ASSERT(isinstanceof<Vclosure>(fn_val),
+           "The evaluation result of function is not closure.");
+    Vclosure *fn_val_closure = static_cast<Vclosure *>(fn_val);
     // renew env by assigning parameters the values of arguments
-    ASSERT(app->arguments.size() == fn_val_closure->params.size(), "arguments' number does not equal to parameters' number");
+    ASSERT(app->arguments.size() == fn_val_closure->params.size(),
+           "arguments' number does not equal to parameters' number");
     size_t arg_size = app->arguments.size();
     for (size_t i = 0; i < arg_size; i++) {
       std::string argument = app->arguments[i];
-      Value* arg_val = env.find(argument)->second;
+      Value *arg_val = env.find(argument)->second;
       std::string parameter = fn_val_closure->params[i];
       env.insert(std::make_pair(parameter, arg_val));
-    } 
+    }
     return eval(fn_val_closure->expr, env);
-  }
-  else {
-    ALARM("Unsupported expr in Expr::eval: " +
-                           eptr->expr_name()); 
+  } else {
+    ALARM("Unsupported expr in Expr::eval: " + eptr->expr_name());
   }
 }
 
 // this eval promises to get a int value
 int eval_final(Expr *eptr, Env env) {
-  Value* value = eval(eptr, env);
-  ASSERT(isinstanceof<Vint>(value), "Value is not of type Vint in function eval_final");
-  Vint* int_value = static_cast<Vint*>(value);
+  Value *value = eval(eptr, env);
+  ASSERT(isinstanceof<Vint>(value),
+         "Value is not of type Vint in function eval_final");
+  Vint *int_value = static_cast<Vint *>(value);
   return int_value->val;
 }
 
@@ -189,8 +196,8 @@ std::string to_str(Expr *eptr) {
         "let " + let->name + " = " + to_str(let->e1) + " in " + to_str(let->e2);
   } else if (isinstanceof<Fn>(eptr)) {
     str += "Fn(";
-    Fn* fn = static_cast<Fn*>(eptr);
-    for (std::string& parameter : fn->params) {
+    Fn *fn = static_cast<Fn *>(eptr);
+    for (std::string &parameter : fn->params) {
       str += parameter + ", ";
     }
     str = str.substr(0, str.size() - 2);
@@ -199,18 +206,16 @@ std::string to_str(Expr *eptr) {
     str += to_str(fn->expr);
     str += "}";
   } else if (isinstanceof<App>(eptr)) {
-    App* app = static_cast<App*>(eptr);
+    App *app = static_cast<App *>(eptr);
     str += to_str(app->fn);
     str += "(";
-    for (std::string& argument : app->arguments) {
+    for (std::string &argument : app->arguments) {
       str += argument + ", ";
     }
     str = str.substr(0, str.size() - 2);
     str += ")";
-  }
-  else {
-    ALARM("Unsupported expr in Expr::to_str: " +
-                           eptr->expr_name());
+  } else {
+    ALARM("Unsupported expr in Expr::to_str: " + eptr->expr_name());
   }
   return str;
 }
@@ -311,8 +316,7 @@ std::string to_str(Expr *eptr) {
     Let *let = static_cast<Let *>(eptr);
     str += "let " + to_str(let->e1) + " in " + to_str(let->e2);
   } else {
-    ALARM("Unsupported expr in Nameless::to_str: " +
-                           eptr->expr_name());
+    ALARM("Unsupported expr in Nameless::to_str: " + eptr->expr_name());
   }
   return str;
 }
@@ -371,14 +375,16 @@ int eval(InstrPtrs instrs, Stack stack) {
       Instruction::Cst *cst = static_cast<Instruction::Cst *>(instrPtr);
       stack.insert(stack.begin(), cst->val);
     } else if (isinstanceof<Add>(instrPtr)) {
-      ASSERT(stack.size() >= 2, "Inadequate values in stack for Add instruction");
+      ASSERT(stack.size() >= 2,
+             "Inadequate values in stack for Add instruction");
       int val1 = stack.front();
       stack.pop_front();
       int val2 = stack.front();
       stack.pop_front();
       stack.insert(stack.begin(), val1 + val2);
     } else if (isinstanceof<Mul>(instrPtr)) {
-      ASSERT(stack.size() >= 2, "Inadequate values in stack for Mul instruction");
+      ASSERT(stack.size() >= 2,
+             "Inadequate values in stack for Mul instruction");
       int val1 = stack.front();
       stack.pop_front();
       int val2 = stack.front();
@@ -405,12 +411,12 @@ int eval(InstrPtrs instrs, Stack stack) {
       stack.insert(stack.begin(), val1);
       stack.insert(stack.begin(), val2);
     } else {
-      ALARM("Unsupported expr in Instr::to_str: " +
-                             instrPtr->expr_name());
+      ALARM("Unsupported expr in Instr::to_str: " + instrPtr->expr_name());
     }
   }
-  ASSERT(stack.size() == 1, "Incorrect number of elements in stack, and size equals " +
-        std::to_string(stack.size()));
+  ASSERT(stack.size() == 1,
+         "Incorrect number of elements in stack, and size equals " +
+             std::to_string(stack.size()));
   return *(stack.begin());
 }
 
@@ -432,8 +438,7 @@ std::string to_str(InstrPtrs instrs) {
     } else if (isinstanceof<Swap>(instr)) {
       str += ">| Swap\n";
     } else {
-      ALARM("Unsupported instr in Instr::to_str: " +
-                             instr->expr_name());
+      ALARM("Unsupported instr in Instr::to_str: " + instr->expr_name());
     }
   }
   return str;
@@ -477,8 +482,7 @@ Nameless::Expr *lowerFromExprToNameless(Expr::Expr *eptr, CEnv cenv) {
     return new Nameless::Let(lowerFromExprToNameless(let->e1, cenv),
                              lowerFromExprToNameless(let->e2, cenv));
   } else {
-    ALARM("Unsupported expr in Nameless::eval: " +
-                           eptr->expr_name());
+    ALARM("Unsupported expr in Nameless::eval: " + eptr->expr_name());
   }
 }
 
@@ -510,8 +514,8 @@ int findIndexofInstructionVar(int NamelessVarIndex, AEnv aenv) {
       return aenv_siz - 1 - count;
     }
   }
-  ALARM("Cannot find NamelessVarIndex " +
-                         std::to_string(NamelessVarIndex) + " in aenv");
+  ALARM("Cannot find NamelessVarIndex " + std::to_string(NamelessVarIndex) +
+        " in aenv");
 }
 
 Instruction::InstrPtrs lowerFromNamelessToInstruction(Nameless::Expr *eptr,
@@ -556,7 +560,7 @@ Instruction::InstrPtrs lowerFromNamelessToInstruction(Nameless::Expr *eptr,
     return instrPtrs;
   }
   ALARM("Unsupported Nameless::Expr in lowerFromNamelessToInstruction: " +
-      eptr->expr_name());
+        eptr->expr_name());
 }
 
 } // namespace Compiler
