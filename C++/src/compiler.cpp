@@ -16,7 +16,6 @@ public:
 
 class Cst : public Expr {
 public:
-  Cst() {}
   Cst(int val) : val(val) {}
   int val;
   std::string expr_name() { return "Cst"; }
@@ -24,7 +23,6 @@ public:
 
 class Add : public Expr {
 public:
-  Add() {}
   Add(Expr *e1, Expr *e2) : e1(e1), e2(e2) {}
   Expr *e1;
   Expr *e2;
@@ -33,7 +31,6 @@ public:
 
 class Mul : public Expr {
 public:
-  Mul() {}
   Mul(Expr *e1, Expr *e2) : e1(e1), e2(e2) {}
   Expr *e1;
   Expr *e2;
@@ -42,7 +39,6 @@ public:
 
 class Var : public Expr {
 public:
-  Var() {}
   Var(std::string name) : name(name) {}
   std::string name;
   std::string expr_name() { return "Var"; }
@@ -50,7 +46,6 @@ public:
 
 class Let : public Expr {
 public:
-  Let() {}
   Let(std::string name, Expr *e1, Expr *e2) : name(name), e1(e1), e2(e2) {}
   std::string name;
   Expr *e1;
@@ -58,18 +53,73 @@ public:
   std::string expr_name() { return "Let"; }
 };
 
+class Fn : public Expr {
+public:
+  Fn(std::vector<std::string> params, Expr* expr) : params(params), expr(expr) {}
+  Fn(std::vector<std::string>&& params, Expr* expr): params(std::move(params)), expr(expr) {}
+  std::vector<std::string> params;
+  Expr* expr;
+};
+
+class App : public Expr {
+public:
+  App(Fn* fn, std::vector<std::string> arguments): fn(fn), arguments(arguments) {}
+  App(Fn* fn, std::vector<std::string>&& arguments): fn(fn), arguments(std::move(arguments)) {}
+  Fn* fn;
+  std::vector<std::string> arguments;
+};
+
 typedef std::unordered_map<std::string, int> Env;
 
-int eval(Expr *eptr, Env env) {
+class Value {
+public:
+  virtual ~Value () {}
+};
+
+class Vint : public Value {
+public:
+  Vint(int val): val(val) {}
+  int val;
+};
+
+class Vclosure : public Value {
+public:
+  Vclosure(Env env, std::vector<std::string> params, Expr* expr): env(env), params(params), expr(expr) {}
+  Vclosure(Env env, std::vector<std::string>&& params, Expr* expr): env(env), params(std::move(params)), expr(expr) {}
+  Env env;
+  std::vector<std::string> params;
+  Expr* expr;
+};
+
+Vint* vadd(Value* v1, Value* v2) {
+  if(isinstanceof<Vint>(v1) && isinstanceof<Vint>(v2)) {
+    Vint* vint1 = static_cast<Vint*>(v1);
+    Vint* vint2 = static_cast<Vint*>(v2);
+    return new Vint(vint1->val + vint2->val);
+  }
+  throw std::logic_error("vadd type error");
+}
+
+Vint* vmul(Value* v1, Value* v2) {
+  if(isinstanceof<Vint>(v1) && isinstanceof<Vint>(v2)) {
+    Vint* vint1 = static_cast<Vint*>(v1);
+    Vint* vint2 = static_cast<Vint*>(v2);
+    return new Vint(vint1->val * vint2->val);
+  }
+  throw std::logic_error("vmul type error");
+}
+
+
+Value* eval(Expr *eptr, Env env) {
   if (isinstanceof<Cst>(eptr)) {
     Cst *cst = static_cast<Cst *>(eptr);
-    return cst->val;
+    return new Vint(cst->val);
   } else if (isinstanceof<Add>(eptr)) {
     Add *add = static_cast<Add *>(eptr);
-    return eval(add->e1, env) + eval(add->e2, env);
+    return vadd(eval(add->e1, env), eval(add->e2, env));
   } else if (isinstanceof<Mul>(eptr)) {
     Mul *mul = static_cast<Mul *>(eptr);
-    return eval(mul->e1, env) * eval(mul->e2, env);
+    return vmul(eval(mul->e1, env), eval(mul->e2, env));
   } else if (isinstanceof<Var>(eptr)) {
     Var *var = static_cast<Var *>(eptr);
     auto pos = env.find(var->name);
@@ -82,7 +132,11 @@ int eval(Expr *eptr, Env env) {
     int e1_val = eval(let->e1, env);
     env.insert(std::make_pair(let->name, e1_val));
     return eval(let->e2, env);
-  } else {
+  } else if (isinstanceof<Fn>(eptr)) {
+    Fn *fn = static_cast<Fn *>(eptr);
+
+  } 
+  else {
     throw std::logic_error("Unsupported expr in Expr::eval: " +
                            eptr->expr_name());
   }
