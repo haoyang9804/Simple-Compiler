@@ -68,8 +68,8 @@ public:
 
 class App : public Expr {
 public:
-  App(Fn* fn, const std::vector<std::string>& arguments): fn(fn), arguments(arguments) {}
-  App(Fn* fn, std::vector<std::string>&& arguments): fn(fn), arguments(std::move(arguments)) {}
+  App(Expr* fn, const std::vector<std::string>& arguments): fn(fn), arguments(arguments) {}
+  App(Expr* fn, std::vector<std::string>&& arguments): fn(fn), arguments(std::move(arguments)) {}
   Expr* fn;
   std::vector<std::string> arguments;
 };
@@ -142,7 +142,7 @@ Value* eval(Expr *eptr, Env env) {
   } else if (isinstanceof<App>(eptr)) {
     App *app = static_cast<App *>(eptr);
     Value* fn_val = eval(app->fn, env);
-    ASSERT(isinstanceof<Vclosure*>(fn_val), "The evaluation result of function is not closure.");
+    ASSERT(isinstanceof<Vclosure>(fn_val), "The evaluation result of function is not closure.");
     Vclosure* fn_val_closure = static_cast<Vclosure*>(fn_val);
     // renew env by assigning parameters the values of arguments
     ASSERT(app->arguments.size() == fn_val_closure->params.size(), "arguments' number does not equal to parameters' number");
@@ -159,6 +159,14 @@ Value* eval(Expr *eptr, Env env) {
     ALARM("Unsupported expr in Expr::eval: " +
                            eptr->expr_name()); 
   }
+}
+
+// this eval promises to get a int value
+int eval_final(Expr *eptr, Env env) {
+  Value* value = eval(eptr, env);
+  ASSERT(isinstanceof<Vint>(value), "Value is not of type Vint in function eval_final");
+  Vint* int_value = static_cast<Vint*>(value);
+  return int_value->val;
 }
 
 std::string to_str(Expr *eptr) {
@@ -186,9 +194,10 @@ std::string to_str(Expr *eptr) {
       str += parameter + ", ";
     }
     str = str.substr(0, str.size() - 2);
-    str += "{\n";
+    str += ")";
+    str += "{";
     str += to_str(fn->expr);
-    str += "\n}";
+    str += "}";
   } else if (isinstanceof<App>(eptr)) {
     App* app = static_cast<App*>(eptr);
     str += to_str(app->fn);
