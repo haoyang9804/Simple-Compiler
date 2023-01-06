@@ -6,3 +6,5 @@ _build/
 *.vos
 build
 .vscode
+node_modules
+bin
