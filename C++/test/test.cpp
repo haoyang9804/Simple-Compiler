@@ -57,11 +57,13 @@ int main() {
     std::cout << "Expression is \"" << Expr::to_str(let3) << "\"" << std::endl;
     std::cout << "eval should be 7, and the calculation result is "
               << Expr::eval_final(let3, {}) << std::endl;
-    
+
     std::cout << "=====Lowering to Nameless Expression=====" << std::endl;
     Nameless::Expr *nlet3 = Compiler::lowerFromExprToNameless(let3, {});
-    std::cout << "Expression is \"" << Nameless::to_str(nlet3) << "\"" << std::endl;
-    std::cout << "eval should be 7, and the calculation result is " << Nameless::eval_final(nlet3, {}) << std::endl;
+    std::cout << "Expression is \"" << Nameless::to_str(nlet3) << "\""
+              << std::endl;
+    std::cout << "eval should be 7, and the calculation result is "
+              << Nameless::eval_final(nlet3, {}) << std::endl;
   }
 
   {
@@ -108,11 +110,13 @@ int main() {
     std::cout << "Expression is \"" << Expr::to_str(let3) << "\"" << std::endl;
     std::cout << "eval should be 7, and the calculation result is "
               << Expr::eval_final(let3, {}) << std::endl;
-    
+
     std::cout << "=====Lowering to Nameless Expression=====" << std::endl;
     Nameless::Expr *nlet3 = Compiler::lowerFromExprToNameless(let3, {});
-    std::cout << "Expression is \"" << Nameless::to_str(nlet3) << "\"" << std::endl;
-    std::cout << "eval should be 7, and the calculation result is " << Nameless::eval_final(nlet3, {}) << std::endl;
+    std::cout << "Expression is \"" << Nameless::to_str(nlet3) << "\""
+              << std::endl;
+    std::cout << "eval should be 7, and the calculation result is "
+              << Nameless::eval_final(nlet3, {}) << std::endl;
   }
 
   {
@@ -142,7 +146,7 @@ int main() {
     Nameless::Expr *nLet2 = Compiler::lowerFromExprToNameless(let2, {});
     std::cout << "Nameless expression is \"" << Nameless::to_str(nLet2) << "\""
               << std::endl;
-    std::cout << "eval should be: " << Nameless::eval_final(nLet2, {}) << std::endl;
+    std::cout << "eval should be: " << Nameless::eval_final(nLet2, {})
+              << std::endl;
   }
-
 }

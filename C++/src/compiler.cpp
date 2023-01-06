@@ -365,7 +365,9 @@ Value *eval(Expr *eptr, Env env) {
     return vmul(eval(mul->e1, env), eval(mul->e2, env));
   } else if (isinstanceof<Var>(eptr)) {
     Var *var = static_cast<Var *>(eptr);
-    ASSERT(env.size() > var->index, "var " + std::to_string(var->index) + "'s index is out of env's scope (" + std::to_string(env.size()) + ")");
+    ASSERT(env.size() > var->index, "var " + std::to_string(var->index) +
+                                        "'s index is out of env's scope (" +
+                                        std::to_string(env.size()) + ")");
     return env[var->index];
   } else if (isinstanceof<Let>(eptr)) {
     Let *let = static_cast<Let *>(eptr);
@@ -430,7 +432,7 @@ std::string to_str(Expr *eptr) {
     str += "let " + to_str(let->e1) + " in " + to_str(let->e2);
   } else if (isinstanceof<Fn>(eptr)) {
     str += "Fn";
-    Fn* fn = static_cast<Fn*>(eptr);
+    Fn *fn = static_cast<Fn *>(eptr);
     str += "{";
     str += to_str(fn->expr);
     str += "}";
@@ -443,8 +445,7 @@ std::string to_str(Expr *eptr) {
     }
     str = str.substr(0, str.size() - 2);
     str += ")";
-  }
-  else {
+  } else {
     ALARM("Unsupported expr in Nameless::to_str: " + eptr->expr_name());
   }
   return str;
@@ -592,7 +593,7 @@ int findIndex(CEnv cenv, std::string name) {
 
 // lastcenv is for handling the following situation:
 // If we have an app expr `fn(x y){x + y}(1 2)`, then after
-// we know the cenv of fn, we immediately use it for 
+// we know the cenv of fn, we immediately use it for
 CEnv lastcenv = {};
 
 Nameless::Expr *lowerFromExprToNameless(Expr::Expr *eptr, CEnv cenv) {
@@ -613,32 +614,31 @@ Nameless::Expr *lowerFromExprToNameless(Expr::Expr *eptr, CEnv cenv) {
     return new Nameless::Var(findIndex(cenv, var->name));
   } else if (isinstanceof<Expr::Let>(eptr)) {
     Expr::Let *let = static_cast<Expr::Let *>(eptr);
-    Nameless::Expr* ne1 = lowerFromExprToNameless(let->e1, cenv);
+    Nameless::Expr *ne1 = lowerFromExprToNameless(let->e1, cenv);
     cenv.push_back(let->name);
-    return new Nameless::Let(ne1,
-                             lowerFromExprToNameless(let->e2, cenv));
+    return new Nameless::Let(ne1, lowerFromExprToNameless(let->e2, cenv));
   } else if (isinstanceof<Expr::Fn>(eptr)) {
     Expr::Fn *fn = static_cast<Expr::Fn *>(eptr);
-    for(auto& param : fn->params) {
+    for (auto &param : fn->params) {
       cenv.push_back(param);
     }
     Nameless::Expr *body = lowerFromExprToNameless(fn->expr, cenv);
     return new Nameless::Fn(body);
   } else if (isinstanceof<Expr::App>(eptr)) {
     Expr::App *app = static_cast<Expr::App *>(eptr);
-    Nameless::Expr* fn = lowerFromExprToNameless(app->fn, cenv);
+    Nameless::Expr *fn = lowerFromExprToNameless(app->fn, cenv);
     std::vector<Nameless::Expr *> nameless_arguments = {};
     for (Expr::STRING_OR_EXPR argument : app->arguments) {
-      if(Expr::is_string(argument)) {
-        nameless_arguments.push_back(new Nameless::Var(findIndex(cenv, std::get<std::string>(argument))));
-      }
-      else {
-        nameless_arguments.push_back(lowerFromExprToNameless(std::get<Expr::Expr*>(argument), cenv));
+      if (Expr::is_string(argument)) {
+        nameless_arguments.push_back(new Nameless::Var(
+            findIndex(cenv, std::get<std::string>(argument))));
+      } else {
+        nameless_arguments.push_back(
+            lowerFromExprToNameless(std::get<Expr::Expr *>(argument), cenv));
       }
     }
     return new Nameless::App(fn, std::move(nameless_arguments));
-  }
-  else {
+  } else {
     ALARM("Unsupported expr in Nameless::eval: " + eptr->expr_name());
   }
 }
