@@ -2,6 +2,7 @@
 #include <list>
 #include <unordered_map>
 #include <vector>
+#include <variant>
 
 #define ASSERT(STATEMENT, STR)                                                 \
   if (!(STATEMENT))                                                            \
@@ -69,14 +70,27 @@ public:
   Expr *expr;
 };
 
+using STRING_OR_EXPR = std::variant<std::string, Expr*>;
+bool is_string(STRING_OR_EXPR soe) {
+  try {
+    std::get<std::string>(soe);
+  }
+  catch (const std::bad_variant_access& ex) {
+    return false;
+  }
+  return true;
+}
+
 class App : public Expr {
 public:
-  App(Expr *fn, const std::vector<std::string> &arguments)
+  App(Expr *fn, const std::vector<STRING_OR_EXPR> &arguments)
       : fn(fn), arguments(arguments) {}
-  App(Expr *fn, std::vector<std::string> &&arguments)
+  App(Expr *fn, std::vector<STRING_OR_EXPR> &&arguments)
       : fn(fn), arguments(std::move(arguments)) {}
   Expr *fn;
-  std::vector<std::string> arguments;
+  // argument could be of type string (name of variable)
+  // or of Expr, such as Cst(1)
+  std::vector<STRING_OR_EXPR> arguments;
 };
 
 class Value;
@@ -151,17 +165,29 @@ Value *eval(Expr *eptr, Env env) {
     ASSERT(isinstanceof<Vclosure>(fn_val),
            "The evaluation result of function is not closure.");
     Vclosure *fn_val_closure = static_cast<Vclosure *>(fn_val);
+    Env closure_env = fn_val_closure->env;
     // renew env by assigning parameters the values of arguments
     ASSERT(app->arguments.size() == fn_val_closure->params.size(),
            "arguments' number does not equal to parameters' number");
     size_t arg_size = app->arguments.size();
     for (size_t i = 0; i < arg_size; i++) {
-      std::string argument = app->arguments[i];
-      Value *arg_val = env.find(argument)->second;
-      std::string parameter = fn_val_closure->params[i];
-      env.insert(std::make_pair(parameter, arg_val));
+      STRING_OR_EXPR argument = app->arguments[i];
+      // argument is a string, representing the name of a variable
+      if (is_string(argument)) {
+        std::string argument_str = std::get<std::string>(argument);
+        Value *arg_val = closure_env.find(argument_str)->second;
+        std::string parameter = fn_val_closure->params[i];
+        closure_env.insert(std::make_pair(parameter, arg_val));
+      }
+      // argument is a temporary value, e.g., Add(Cst(1), Cst(2))
+      else {
+        Expr* argument_expr = std::get<Expr*>(argument);
+        Value *arg_val = eval(argument_expr, closure_env);
+        std::string parameter = fn_val_closure->params[i];
+        closure_env.insert(std::make_pair(parameter, arg_val)); 
+      }
     }
-    return eval(fn_val_closure->expr, env);
+    return eval(fn_val_closure->expr, closure_env);
   } else {
     ALARM("Unsupported expr in Expr::eval: " + eptr->expr_name());
   }
@@ -209,8 +235,14 @@ std::string to_str(Expr *eptr) {
     App *app = static_cast<App *>(eptr);
     str += to_str(app->fn);
     str += "(";
-    for (std::string &argument : app->arguments) {
-      str += argument + ", ";
+    for (auto &argument : app->arguments) {
+      if (is_string(argument)) {
+        str += std::get<std::string>(argument) + ", ";
+      }
+      else {
+        str += to_str(std::get<Expr*>(argument)) + ", ";
+      }
+      
     }
     str = str.substr(0, str.size() - 2);
     str += ")";
@@ -231,7 +263,6 @@ public:
 
 class Cst : public Expr {
 public:
-  Cst() {}
   Cst(int val) : val(val) {}
   int val;
   std::string expr_name() { return "Cst"; }
@@ -239,7 +270,6 @@ public:
 
 class Add : public Expr {
 public:
-  Add() {}
   Add(Expr *e1, Expr *e2) : e1(e1), e2(e2) {}
   Expr *e1;
   Expr *e2;
@@ -248,7 +278,6 @@ public:
 
 class Mul : public Expr {
 public:
-  Mul() {}
   Mul(Expr *e1, Expr *e2) : e1(e1), e2(e2) {}
   Expr *e1;
   Expr *e2;
@@ -257,7 +286,6 @@ public:
 
 class Var : public Expr {
 public:
-  Var() {}
   Var(int index) : index(index) {}
   int index;
   std::string expr_name() { return "Var"; }
@@ -265,35 +293,100 @@ public:
 
 class Let : public Expr {
 public:
-  Let() {}
   Let(Expr *e1, Expr *e2) : e1(e1), e2(e2) {}
   Expr *e1;
   Expr *e2;
   std::string expr_name() { return "Let"; }
 };
 
-typedef std::vector<int> Env;
+class Fn : public Expr {
+public:
+  Fn(Expr* expr) : expr(expr) {}
+  Expr* expr;
+};
 
-int eval(Expr *eptr, Env env) {
+class App : public Expr {
+public:
+  App(Expr* expr, const std::vector<Expr*>& arguments) : expr(expr), arguments(arguments) {}
+  App(Expr* expr, std::vector<Expr*>&& arguments) : expr(expr), arguments(std::move(arguments)) {}
+  Expr* expr;
+  std::vector<Expr*> arguments;
+};
+
+class Value;
+typedef std::vector<Value*> Env;
+
+class Value {
+public:
+  virtual ~Value() {}
+};
+
+class Vint : public Value {
+public:
+  Vint(int val) : val(val) {}
+  int val;
+};
+
+class Vclosure : public Value {
+public:
+  Vclosure(Env env, Expr* expr) : env(env), expr(expr) {}
+  Env env;
+  Expr* expr;
+};
+
+Vint *vadd(Value *v1, Value *v2) {
+  if (isinstanceof<Vint>(v1) && isinstanceof<Vint>(v2)) {
+    Vint *vint1 = static_cast<Vint *>(v1);
+    Vint *vint2 = static_cast<Vint *>(v2);
+    return new Vint(vint1->val + vint2->val);
+  }
+  ALARM("vadd type error");
+}
+
+Vint *vmul(Value *v1, Value *v2) {
+  if (isinstanceof<Vint>(v1) && isinstanceof<Vint>(v2)) {
+    Vint *vint1 = static_cast<Vint *>(v1);
+    Vint *vint2 = static_cast<Vint *>(v2);
+    return new Vint(vint1->val * vint2->val);
+  }
+  ALARM("vmul type error");
+}
+
+Value* eval(Expr *eptr, Env env) {
   if (isinstanceof<Cst>(eptr)) {
     Cst *cst = static_cast<Cst *>(eptr);
-    return cst->val;
+    return new Vint(cst->val);
   } else if (isinstanceof<Add>(eptr)) {
     Add *add = static_cast<Add *>(eptr);
-    return eval(add->e1, env) + eval(add->e2, env);
+    return vadd(eval(add->e1, env), eval(add->e2, env));
   } else if (isinstanceof<Mul>(eptr)) {
     Mul *mul = static_cast<Mul *>(eptr);
-    return eval(mul->e1, env) * eval(mul->e2, env);
+    return vmul(eval(mul->e1, env),  eval(mul->e2, env));
   } else if (isinstanceof<Var>(eptr)) {
     Var *var = static_cast<Var *>(eptr);
     ASSERT(env.size() > var->index, "var's index is out of env's scope");
     return env[var->index];
   } else if (isinstanceof<Let>(eptr)) {
     Let *let = static_cast<Let *>(eptr);
-    int e1_val = eval(let->e1, env);
+    Value* e1_val = eval(let->e1, env);
     env.push_back(e1_val);
     return eval(let->e2, env);
-  } else {
+  } else if (isinstanceof<Fn>(eptr)) {
+    Fn *fn = static_cast<Fn *>(eptr);
+    return new Vclosure(env, fn->expr); 
+  } else if (isinstanceof<App>(eptr)) {
+    App *app = static_cast<App *>(eptr);
+    Value* maybe_closure = eval(app->expr, env);
+    ASSERT(isinstanceof<Vclosure>(maybe_closure), "Expression for application cannot be evaluated into Vclosure");
+    Vclosure* closure = static_cast<Vclosure*>(maybe_closure);
+    Env closure_env = closure->env;
+    for (auto& argument : app->arguments) {
+      Value* arg_val = eval(argument, env);
+      closure_env.push_back(arg_val);
+    }
+    return eval(closure->expr, closure_env);
+  }
+  else {
     ALARM("Unsupported expr in Nameless::eval: " + eptr->expr_name());
   }
 }
