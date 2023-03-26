@@ -1,4 +1,4 @@
-# PL-play
+# Simple Compiler
 
 Implementation of language examples in [this course](https://bobzhang.github.io/courses/)
 
